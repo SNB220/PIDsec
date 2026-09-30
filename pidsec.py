@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import platform
+import shlex
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -285,6 +286,8 @@ def print_connections(records: list[dict[str, Any]]) -> None:
 
 
 def write_csv(path: str, rows: list[dict[str, Any]]) -> None:
+    if not path.casefold().endswith(".csv"):
+        path += ".csv"
     fields = list(rows[0].keys()) if rows else ["captured_at", "host", "os", "python"]
     with open(path, "w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fields)
@@ -374,26 +377,40 @@ def interactive() -> None:
     help_menu()
     while True:
         try:
-            command = input("\npidsec> ").strip().split()
+            line = input("\npidsec> ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return
-        if not command or command[0].lower() in {"help", "?"}:
+        if not line:
             help_menu()
-        elif command[0].lower() in {"quit", "exit", "q"}:
+            continue
+        command = shlex.split(line)
+        name = command[0].casefold()
+        if name in {"quit", "exit", "q"}:
             return
-        elif command[0].lower() == "list":
-            list_processes()
-        elif command[0].lower() in {"connections", "net"}:
-            pid = int(command[1]) if len(command) > 1 else None
-            print_connections(collect_connections(pid))
-        elif command[0].lower() == "tree" and len(command) > 1:
-            print_tree(int(command[1]))
-        else:
-            try:
-                print_process(process_record(psutil.Process(int(command[0]))))
-            except (ValueError, psutil.NoSuchProcess):
-                print("Enter a valid PID or type help.")
+        if name in {"help", "?"}:
+            help_menu()
+            continue
+        aliases = {
+            "list": "--list",
+            "connections": "--connections",
+            "net": "--connections",
+            "tree": "--tree",
+            "score": "--score",
+            "snapshot": "--snapshot",
+            "compare": "--compare",
+        }
+        command[0] = aliases.get(name, command[0])
+        try:
+            args = build_parser().parse_args(command)
+            if args.interactive:
+                help_menu()
+            else:
+                run_args(args)
+        except SystemExit:
+            continue
+        except (OSError, psutil.NoSuchProcess, psutil.AccessDenied, ValueError) as error:
+            print(f"Command failed: {error}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -418,13 +435,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    if platform.system() != "Windows":
-        print("Warning: PIDsec is designed for Windows; some fields may be unavailable.", file=sys.stderr)
-    args = build_parser().parse_args()
-    if args.interactive or len(sys.argv) == 1:
-        interactive()
-        return 0
+def run_args(args: argparse.Namespace) -> int:
     if args.snapshot:
         write_snapshot(args.snapshot)
         return 0
@@ -482,6 +493,16 @@ def main() -> int:
     else:
         print_process(record)
     return 0
+
+
+def main() -> int:
+    if platform.system() != "Windows":
+        print("Warning: PIDsec is designed for Windows; some fields may be unavailable.", file=sys.stderr)
+    args = build_parser().parse_args()
+    if args.interactive or len(sys.argv) == 1:
+        interactive()
+        return 0
+    return run_args(args)
 
 
 if __name__ == "__main__":
