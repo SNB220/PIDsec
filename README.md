@@ -4,8 +4,6 @@ Made by **SNB220**.
 
 PIDsec is a Windows command-line process triage tool for DFIR, debugging, system inspection, and basic inter-process communication review. It reports process identity, ancestry, command line, memory, CPU time, open files, child processes, active network connections, executable hashes, and explainable suspicion indicators.
 
-See [MENU.md](MENU.md) for the full command reference and a practical triage workflow.
-
 ## Install
 
 ```powershell
