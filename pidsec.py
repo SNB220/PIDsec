@@ -171,6 +171,8 @@ def print_scores(records: list[dict[str, Any]]) -> None:
 
 
 def write_snapshot(path: str) -> None:
+    if not os.path.splitext(path)[1]:
+        path += ".json"
     snapshot = {
         "schema_version": 1,
         **report_metadata(),
